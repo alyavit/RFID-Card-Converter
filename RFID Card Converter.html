@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RFID Конвертер</title>
+	<style>
+		:root {
+			--primary: #3b82f6;
+			--bg: #f5f5f5;
+			--card: #ffffff;
+			--text: #333333;
+			--border: #dddddd;
+		}
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+			background: var(--bg);
+			color: var(--text);
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			min-height: 100vh;
+			margin: 0;
+			padding: 20px;
+		}
+		.converter-card {
+			background: var(--card);
+			padding: 24px;
+			border-radius: 6px;
+			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+			border: 1px solid #e0e0e0;
+			width: 100%;
+			max-width: 450px;
+		}
+		h2 { 
+			text-align: center; 
+			margin-top: 0; 
+			margin-bottom: 24px;
+			color: var(--primary);
+			font-size: 22px;
+		}
+		.input-group { margin-bottom: 20px; }
+		label { 
+			display: block; 
+			font-size: 13px; 
+			font-weight: 600; 
+			margin-bottom: 6px; 
+			color: #555;
+		}
+		input {
+			width: 100%;
+			padding: 10px 12px;
+			border: 1px solid var(--border);
+			border-radius: 4px;
+			font-size: 14px;
+			box-sizing: border-box;
+		}
+		input:focus {
+			outline: none;
+			border-color: var(--primary);
+			box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+		}
+		
+		/* Стили для раздельного ввода */
+		.split-input {
+			display: flex;
+			gap: 8px;
+			align-items: center;
+		}
+		.split-input input {
+			flex: 1;
+		}
+		.split-input .separator {
+			font-weight: bold;
+			color: var(--primary);
+			font-size: 1.2rem;
+		}
+		.split-input .facility { flex: 0 0 35%; }
+		.split-input .card { flex: 0 0 55%; }
+		
+		.note { 
+			font-size: 12px; 
+			color: #888; 
+			text-align: center; 
+			margin-top: 24px;
+			padding-top: 16px;
+			border-top: 1px solid #eee;
+		}
+	</style>
+</head>
+<body>
+
+<div class="converter-card">
+    <h2>RFID Конвертер</h2>
+
+    <div class="input-group">
+        <label for="decimal">Десятичный код (Decimal)</label>
+        <input type="text" id="decimal" placeholder="Например: 2426426">
+    </div>
+
+    <div class="input-group">
+        <label for="hex">Шестнадцатеричный код (Hex)</label>
+        <input type="text" id="hex" placeholder="Например: 0E2A3B5C1D">
+    </div>
+
+    <div class="input-group">
+        <label for="text">Текстовый код (Facility, Card)</label>
+        <input type="text" id="text" placeholder="Например: 037,01594">
+    </div>
+
+    <!-- Новые раздельные поля -->
+    <div class="input-group">
+        <label>Текстовый код (раздельно)</label>
+        <div class="split-input">
+            <input type="text" id="facility" class="facility" placeholder="Facility" maxlength="6">
+            <span class="separator">,</span>
+            <input type="text" id="card" class="card" placeholder="Card (00000)" maxlength="5" pattern="\d*">
+        </div>
+    </div>
+
+    <div class="note">
+        Все поля конвертируются автоматически
+    </div>
+</div>
+
+<script>
+    const inputs = {
+        decimal: document.getElementById('decimal'),
+        hex: document.getElementById('hex'),
+        text: document.getElementById('text'),
+        facility: document.getElementById('facility'),
+        card: document.getElementById('card')
+    };
+
+    function formatTextCode(facility, card) {
+        const formattedCard = String(card || 0).padStart(5, '0');
+        return `${facility},${formattedCard}`;
+    }
+
+    function parseTextCode(value) {
+        const parts = value.trim().split(',');
+        if (parts.length >= 1) {
+            const facility = parseInt(parts[0], 10) || 0;
+            let cardStr = parts[1] || '0';
+            if (cardStr.length < 5) cardStr = cardStr.padEnd(5, '0');
+            const cardNumber = parseInt(cardStr, 10) || 0;
+            return { facility, cardNumber };
+        }
+        return { facility: 0, cardNumber: 0 };
+    }
+
+    function updateSplitInputs(facility, card) {
+        inputs.facility.value = facility;
+        inputs.card.value = String(card).padStart(5, '0');
+    }
+
+    function convert(source) {
+        let decimalVal = 0;
+        let facility = 0;
+        let cardNumber = 0;
+
+        try {
+            if (source === 'decimal') {
+                decimalVal = parseInt(inputs.decimal.value.trim(), 10);
+            } 
+            else if (source === 'hex') {
+                decimalVal = parseInt(inputs.hex.value.trim(), 16);
+            } 
+            else if (source === 'text') {
+                const parsed = parseTextCode(inputs.text.value);
+                facility = parsed.facility;
+                cardNumber = parsed.cardNumber;
+                decimalVal = (facility * 65536) + cardNumber;
+            }
+            else if (source === 'split') {
+                facility = parseInt(inputs.facility.value.trim(), 10) || 0;
+                const cardStr = (inputs.card.value.trim() || '0').padEnd(5, '0');
+                cardNumber = parseInt(cardStr, 10) || 0;
+                decimalVal = (facility * 65536) + cardNumber;
+            }
+
+            if (isNaN(decimalVal) || decimalVal < 0) {
+                if(!['text','split'].includes(source)) clearFields(source);
+                return;
+            }
+
+            // Обновляем все поля
+            if (source !== 'decimal') inputs.decimal.value = decimalVal;
+            if (source !== 'hex') inputs.hex.value = decimalVal.toString(16).toUpperCase().padStart(10, '0');
+            
+            facility = Math.floor(decimalVal / 65536);
+            cardNumber = decimalVal % 65536;
+            
+            if (source !== 'text') {
+                inputs.text.value = formatTextCode(facility, cardNumber);
+            }
+            if (source !== 'split') {
+                updateSplitInputs(facility, cardNumber);
+            }
+
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    function clearFields(except) {
+        if (except !== 'decimal') inputs.decimal.value = '';
+        if (except !== 'hex') inputs.hex.value = '';
+        if (except !== 'text') inputs.text.value = '';
+        if (except !== 'split') {
+            inputs.facility.value = '';
+            inputs.card.value = '';
+        }
+    }
+
+    // Слушатели для основных полей
+    inputs.decimal.addEventListener('input', () => convert('decimal'));
+    inputs.hex.addEventListener('input', () => convert('hex'));
+    inputs.text.addEventListener('input', () => convert('text'));
+    
+    // Слушатели для раздельных полей
+    inputs.facility.addEventListener('input', () => convert('split'));
+    inputs.card.addEventListener('input', (e) => {
+        // Разрешаем только цифры
+        e.target.value = e.target.value.replace(/\D/g, '');
+        convert('split');
+    });
+    
+    // Форматирование при потере фокуса
+    inputs.text.addEventListener('blur', (e) => {
+        const { facility, cardNumber } = parseTextCode(e.target.value);
+        e.target.value = formatTextCode(facility, cardNumber);
+    });
+    
+    inputs.card.addEventListener('blur', (e) => {
+        e.target.value = (e.target.value || '0').padStart(5, '0');
+    });
+</script>
+
+</body>
+</html>
