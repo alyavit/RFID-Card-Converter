@@ -384,8 +384,26 @@
             convert('hex');
         });
 
-        inputs.text.addEventListener('input', () => convert('text'));
+        // Обработка вставки и ввода в поле text: заменяем точку на запятую
+        inputs.text.addEventListener('input', (e) => {
+            // Заменяем точку на запятую (для случаев вставки "089.50740" → "089,50740")
+            if (e.target.value.includes('.')) {
+                e.target.value = e.target.value.replace(/\./g, ',');
+            }
+            convert('text');
+        });
         
+        // Обработка paste отдельно — на случай если input не сработает
+        inputs.text.addEventListener('paste', (e) => {
+            // Даем браузеру вставить значение, затем нормализуем
+            setTimeout(() => {
+                if (e.target.value.includes('.')) {
+                    e.target.value = e.target.value.replace(/\./g, ',');
+                }
+                convert('text');
+            }, 0);
+        });
+
         inputs.facility.addEventListener('input', (e) => {
             e.target.value = e.target.value.replace(/\D/g, '');
             convert('split');
@@ -417,3 +435,4 @@
     </script>
 </body>
 </html>
+
